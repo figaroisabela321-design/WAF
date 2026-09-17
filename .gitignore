@@ -1,0 +1,59 @@
+# Binaries / build output
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+dist/
+build/
+/tmp/
+tmp/
+temp/
+waf-control/waf-control
+/tmp/waf-control
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+jwt*.secret
+*_jwt_secret*
+
+# Local certs
+certs/
+*.local
+
+# Logs (do not ignore Go package waf-control/internal/log)
+logs/
+/log/
+*.log
+!docs/reviews/*.log
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Test / coverage
+coverage/
+coverage.out
+*.out
+*.test
+
+# Postgres local data dirs
+pgdata/
+postgres-data/
+data/postgres/
+
+# Go
+vendor/

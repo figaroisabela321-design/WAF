@@ -1,0 +1,48 @@
+=== Phase 1 Baseline Check — 2026-09-17 Asia/Shanghai ===
+=== gofmt -w . ===
+gofmt exit: 0
+
+=== go vet ./... ===
+go vet exit: 0
+
+=== go test ./... ===
+?   	github.com/gov-waf/waf-control/cmd/server	[no test files]
+?   	github.com/gov-waf/waf-control/docs	[no test files]
+?   	github.com/gov-waf/waf-control/internal/alert	[no test files]
+?   	github.com/gov-waf/waf-control/internal/audit	[no test files]
+ok  	github.com/gov-waf/waf-control/internal/auth	(cached)
+?   	github.com/gov-waf/waf-control/internal/config	[no test files]
+?   	github.com/gov-waf/waf-control/internal/db	[no test files]
+?   	github.com/gov-waf/waf-control/internal/event	[no test files]
+ok  	github.com/gov-waf/waf-control/internal/httpx	(cached)
+?   	github.com/gov-waf/waf-control/internal/log	[no test files]
+?   	github.com/gov-waf/waf-control/internal/node	[no test files]
+?   	github.com/gov-waf/waf-control/internal/policy	[no test files]
+?   	github.com/gov-waf/waf-control/internal/rule	[no test files]
+ok  	github.com/gov-waf/waf-control/internal/site	(cached)
+?   	github.com/gov-waf/waf-control/migrations	[no test files]
+?   	github.com/gov-waf/waf-control/pkg/adapters/agent	[no test files]
+?   	github.com/gov-waf/waf-control/pkg/adapters/clickhouse	[no test files]
+?   	github.com/gov-waf/waf-control/pkg/adapters/coraza	[no test files]
+?   	github.com/gov-waf/waf-control/pkg/pagination	[no test files]
+go test exit: 0
+
+=== go build ./... ===
+go build exit: 0
+
+=== From repo root (go.work) ===
+pattern ./...: directory prefix . does not contain modules listed in go.work or their selected dependencies
+root go vet exit: 1
+# ./...
+pattern ./...: directory prefix . does not contain modules listed in go.work or their selected dependencies
+FAIL	./... [setup failed]
+FAIL
+root go test exit: 1
+pattern ./...: directory prefix . does not contain modules listed in go.work or their selected dependencies
+root go build exit: 1
+
+=== Security search (grep) 2026-09-17 ===
+Findings: JWT/ADMIN defaults in config.go; compose local secrets; .env.example/README document Admin@123
+Password hashing: bcrypt confirmed (internal/auth/hasher.go)
+No .env / pem / key files present in tree
+No password/JWT secret logging in access path
