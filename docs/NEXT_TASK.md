@@ -43,3 +43,4 @@ ChatGPT must return either:
 - `docs/SAMWAF_NODE_POC.md`
 - `docs/THIRD_PARTY_SAMWAF.md`
 - `docs/reviews/phase2a-samwaf-node-poc-gates.log`
+- PR: https://github.com/figaroisabela321-design/WAF/pull/2
