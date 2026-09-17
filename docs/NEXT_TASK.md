@@ -1,6 +1,6 @@
 # NEXT_TASK
 
-**Status:** PENDING — waiting for ChatGPT architecture review (PASS / REWORK)
+**Review Result:** REWORK IN PROGRESS — ChatGPT blockers addressed; awaiting re-review
 
 **Date:** 2026-09-17 (Asia/Shanghai)
 
@@ -12,24 +12,31 @@
 | Architecture review / PASS-REWORK | ChatGPT |
 | Shared source of truth | GitHub |
 
+## Current work
+
+Phase 1 Security Hardening on branch `fix/phase1-security-hardening` (PR #1). ChatGPT REWORK blockers (APP_ENV fail-closed, XFF trust chain, `.github/workflows/ci.yml`) have been fixed on the same branch. Waiting for ChatGPT re-review (PASS / further REWORK). Do **not** invent SamWaf tasks.
+
 ## Explicit holds
 
 - Do **NOT** start SamWaf integration.
-- Do **NOT** start Coraza / CRS / Agent / ClickHouse / Kafka / Dameng integration.
-- Do **NOT** invent next implementation tasks.
-- Do **NOT** redesign architecture or perform large refactors while status is PENDING.
+- Do **NOT** start Coraza / CRS / Agent / Node data-plane / ClickHouse / Kafka / Dameng / frontend work.
+- Do **NOT** invent next implementation tasks beyond ChatGPT instructions.
+- Do **NOT** merge this PR until ChatGPT review completes.
+
+## Blocked on user (CI)
+
+Classic PAT needs **`workflow` scope** to push `.github/workflows/ci.yml`. After granting, ask `waf` to retry the CI file push on the same branch.
 
 ## Waiting for
 
 ChatGPT must return either:
 
-1. **PASS** — with an explicit, ordered next-task list the `waf` agent may execute; or  
-2. **REWORK** — with concrete, scoped fix instructions for the `waf` agent.
+1. **PASS** — with an explicit, ordered next-task list; or
+2. **REWORK** — with concrete, scoped fix instructions.
 
-Until then, `NEXT_TASK` remains empty of implementation work.
-
-## Current baseline references
+## References
 
 - `docs/PROJECT_STATE.md`
 - `docs/AI_HANDOFF.md`
-- `docs/reviews/phase1-baseline-check.log`
+- `docs/reviews/phase1-security-hardening-gates.log`
+- PR: https://github.com/figaroisabela321-design/WAF/pull/1

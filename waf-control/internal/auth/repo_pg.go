@@ -245,3 +245,81 @@ func (r *PGRoleRepository) GetRoleIDsByCodes(ctx context.Context, codes []string
 	}
 	return ids, rows.Err()
 }
+
+// CreateWithRoles inserts user + roles atomically.
+func (r *PGUserRepository) CreateWithRoles(ctx context.Context, u *User, roleIDs []uuid.UUID) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO users (id, username, password_hash, status, created_at, updated_at)
+		VALUES ($1,$2,$3,$4,$5,$6)`,
+		u.ID, u.Username, u.PasswordHash, u.Status, u.CreatedAt, u.UpdatedAt); err != nil {
+		return err
+	}
+	for _, rid := range roleIDs {
+		if _, err := tx.Exec(ctx, `INSERT INTO user_roles (user_id, role_id) VALUES ($1,$2)`, u.ID, rid); err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
+}
+
+// UpdateWithRoles updates user fields and optionally roles atomically.
+func (r *PGUserRepository) UpdateWithRoles(ctx context.Context, u *User, roleIDs *[]uuid.UUID) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	ct, err := tx.Exec(ctx, `
+		UPDATE users SET password_hash=$2, status=$3, updated_at=$4 WHERE id=$1`,
+		u.ID, u.PasswordHash, u.Status, u.UpdatedAt)
+	if err != nil {
+		return err
+	}
+	if ct.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+	if roleIDs != nil {
+		if _, err := tx.Exec(ctx, `DELETE FROM user_roles WHERE user_id=$1`, u.ID); err != nil {
+			return err
+		}
+		for _, rid := range *roleIDs {
+			if _, err := tx.Exec(ctx, `INSERT INTO user_roles (user_id, role_id) VALUES ($1,$2)`, u.ID, rid); err != nil {
+				return err
+			}
+		}
+	}
+	return tx.Commit(ctx)
+}
+
+// LoadUserAuthz implements PermissionLoader for live RBAC.
+func (r *PGUserRepository) LoadUserAuthz(ctx context.Context, userID uuid.UUID) (*User, []string, []string, error) {
+	u, err := r.GetByID(ctx, userID)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	if u == nil {
+		return nil, nil, nil, nil
+	}
+	roles, err := r.GetUserRoleCodes(ctx, userID)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	perms, err := r.GetUserPermissions(ctx, userID)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	if roles == nil {
+		roles = []string{}
+	}
+	if perms == nil {
+		perms = []string{}
+	}
+	return u, roles, perms, nil
+}

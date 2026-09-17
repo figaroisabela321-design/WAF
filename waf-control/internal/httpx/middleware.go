@@ -3,6 +3,7 @@ package httpx
 import (
 	"context"
 	"log/slog"
+	"net"
 	"net/http"
 	"runtime/debug"
 	"time"
@@ -14,6 +15,7 @@ import (
 
 type ctxKeyRequestID struct{}
 type ctxKeyClaims struct{}
+type ctxKeyTrustedProxies struct{}
 
 // RequestIDFromContext returns the request ID.
 func RequestIDFromContext(ctx context.Context) string {
@@ -31,6 +33,32 @@ func WithClaims(ctx context.Context, claims any) context.Context {
 // ClaimsFromContext retrieves JWT claims.
 func ClaimsFromContext(ctx context.Context) any {
 	return ctx.Value(ctxKeyClaims{})
+}
+
+// WithTrustedProxies stores trusted proxy CIDRs for ClientIP resolution.
+func WithTrustedProxies(ctx context.Context, nets []*net.IPNet) context.Context {
+	return context.WithValue(ctx, ctxKeyTrustedProxies{}, nets)
+}
+
+func trustedProxiesFromContext(ctx context.Context) []*net.IPNet {
+	return TrustedProxiesFromContext(ctx)
+}
+
+// TrustedProxiesFromContext returns configured trusted proxy CIDRs.
+func TrustedProxiesFromContext(ctx context.Context) []*net.IPNet {
+	if v, ok := ctx.Value(ctxKeyTrustedProxies{}).([]*net.IPNet); ok {
+		return v
+	}
+	return nil
+}
+
+// TrustedProxies middleware injects configured CIDRs into the request context.
+func TrustedProxies(nets []*net.IPNet) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			next.ServeHTTP(w, r.WithContext(WithTrustedProxies(r.Context(), nets)))
+		})
+	}
 }
 
 // Recover middleware recovers panics and returns 500.
@@ -80,7 +108,7 @@ func AccessLog(logger *slog.Logger) func(http.Handler) http.Handler {
 				"path", r.URL.Path,
 				"status", ww.status,
 				"duration_ms", time.Since(start).Milliseconds(),
-				"ip", ClientIP(r),
+				"ip", ClientIPFromRequest(r, trustedProxiesFromContext(r.Context())),
 			)
 		})
 	}
@@ -94,17 +122,6 @@ type statusWriter struct {
 func (w *statusWriter) WriteHeader(code int) {
 	w.status = code
 	w.ResponseWriter.WriteHeader(code)
-}
-
-// ClientIP extracts client IP from headers or RemoteAddr.
-func ClientIP(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		return xff
-	}
-	if xri := r.Header.Get("X-Real-IP"); xri != "" {
-		return xri
-	}
-	return r.RemoteAddr
 }
 
 // StatusFromWriter returns status from statusWriter if wrapped.

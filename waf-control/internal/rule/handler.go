@@ -1,7 +1,6 @@
 package rule
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -34,8 +33,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	var req CreateRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httpx.Fail(w, 400, httpx.CodeBadRequest, "invalid JSON body")
+	if !httpx.DecodeJSON(w, r, &req) {
 		return
 	}
 	resp, err := h.svc.Create(r.Context(), &req)
@@ -57,8 +55,7 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	var req UpdateRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httpx.Fail(w, 400, httpx.CodeBadRequest, "invalid JSON body")
+	if !httpx.DecodeJSON(w, r, &req) {
 		return
 	}
 	resp, err := h.svc.Update(r.Context(), chi.URLParam(r, "id"), &req)

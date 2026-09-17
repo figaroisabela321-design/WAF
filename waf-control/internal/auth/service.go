@@ -10,6 +10,8 @@ import (
 	"github.com/gov-waf/waf-control/internal/httpx"
 )
 
+const MinPasswordLen = 12
+
 type Service struct {
 	users     UserRepository
 	roles     RoleRepository
@@ -40,11 +42,8 @@ func (s *Service) Login(ctx context.Context, req *LoginRequest) (*LoginResponse,
 	if err != nil {
 		return nil, httpx.Internal("login failed", err)
 	}
-	perms, err := s.users.GetUserPermissions(ctx, u.ID)
-	if err != nil {
-		return nil, httpx.Internal("login failed", err)
-	}
-	claims := &Claims{UserID: u.ID.String(), Username: u.Username, Roles: roleCodes, Permissions: perms}
+	// Issue identity-only JWT (no embedded permissions/roles as source of truth).
+	claims := &Claims{UserID: u.ID.String(), Username: u.Username}
 	token, expiresIn, err := s.tokens.Issue(claims, s.expireHrs)
 	if err != nil {
 		return nil, httpx.Internal("failed to issue token", err)
@@ -62,8 +61,8 @@ func (s *Service) CreateUser(ctx context.Context, req *CreateUserRequest) (*User
 	if strings.TrimSpace(req.Username) == "" {
 		return nil, httpx.Validation("username is required")
 	}
-	if len(req.Password) < 6 {
-		return nil, httpx.Validation("password must be at least 6 characters")
+	if len(req.Password) < MinPasswordLen {
+		return nil, httpx.Validation("password must be at least 12 characters")
 	}
 	status := strings.ToLower(req.Status)
 	if status == "" {
@@ -88,21 +87,22 @@ func (s *Service) CreateUser(ctx context.Context, req *CreateUserRequest) (*User
 		ID: uuid.New(), Username: strings.TrimSpace(req.Username), PasswordHash: hash,
 		Status: status, CreatedAt: now, UpdatedAt: now,
 	}
-	if err := s.users.Create(ctx, u); err != nil {
-		return nil, httpx.Internal("failed to create user", err)
-	}
-	roleCodes := req.RoleCodes
-	if len(roleCodes) > 0 {
-		ids, err := s.roles.GetRoleIDsByCodes(ctx, roleCodes)
+
+	var roleIDs []uuid.UUID
+	if len(req.RoleCodes) > 0 {
+		ids, err := s.roles.GetRoleIDsByCodes(ctx, req.RoleCodes)
 		if err != nil {
 			return nil, httpx.Internal("failed to resolve roles", err)
 		}
-		if len(ids) != len(roleCodes) {
+		if len(ids) != len(req.RoleCodes) {
 			return nil, httpx.Validation("one or more role_codes are invalid")
 		}
-		if err := s.users.SetUserRoles(ctx, u.ID, ids); err != nil {
-			return nil, httpx.Internal("failed to assign roles", err)
-		}
+		roleIDs = ids
+	}
+
+	// Repository owns the transaction: success COMMIT; failure ROLLBACK (no leftover user).
+	if err := s.users.CreateWithRoles(ctx, u, roleIDs); err != nil {
+		return nil, httpx.Internal("failed to create user", err)
 	}
 	return s.toUserResponse(ctx, u)
 }
@@ -135,8 +135,8 @@ func (s *Service) UpdateUser(ctx context.Context, idStr string, req *UpdateUserR
 		return nil, httpx.NotFound("user not found")
 	}
 	if req.Password != nil {
-		if len(*req.Password) < 6 {
-			return nil, httpx.Validation("password must be at least 6 characters")
+		if len(*req.Password) < MinPasswordLen {
+			return nil, httpx.Validation("password must be at least 12 characters")
 		}
 		hash, err := s.hasher.Hash(*req.Password)
 		if err != nil {
@@ -152,9 +152,8 @@ func (s *Service) UpdateUser(ctx context.Context, idStr string, req *UpdateUserR
 		u.Status = st
 	}
 	u.UpdatedAt = time.Now().UTC()
-	if err := s.users.Update(ctx, u); err != nil {
-		return nil, httpx.Internal("failed to update user", err)
-	}
+
+	var roleIDsPtr *[]uuid.UUID
 	if req.RoleCodes != nil {
 		ids, err := s.roles.GetRoleIDsByCodes(ctx, req.RoleCodes)
 		if err != nil {
@@ -163,9 +162,12 @@ func (s *Service) UpdateUser(ctx context.Context, idStr string, req *UpdateUserR
 		if len(ids) != len(req.RoleCodes) {
 			return nil, httpx.Validation("one or more role_codes are invalid")
 		}
-		if err := s.users.SetUserRoles(ctx, u.ID, ids); err != nil {
-			return nil, httpx.Internal("failed to assign roles", err)
-		}
+		roleIDsPtr = &ids
+	}
+
+	// Repository owns the transaction; failure leaves original data unchanged.
+	if err := s.users.UpdateWithRoles(ctx, u, roleIDsPtr); err != nil {
+		return nil, httpx.Internal("failed to update user", err)
 	}
 	return s.toUserResponse(ctx, u)
 }
@@ -229,6 +231,7 @@ func (s *Service) CreateRole(ctx context.Context, req *CreateRoleRequest) (*Role
 }
 
 // SeedAdmin creates admin user from env if none exists.
+// Password length is enforced by production config.Validate; development may use the documented short default.
 func (s *Service) SeedAdmin(ctx context.Context, username, password string) error {
 	n, err := s.users.CountAdmins(ctx)
 	if err != nil {
@@ -254,17 +257,15 @@ func (s *Service) SeedAdmin(ctx context.Context, username, password string) erro
 	}
 	now := time.Now().UTC()
 	u := &User{ID: uuid.New(), Username: username, PasswordHash: hash, Status: "enabled", CreatedAt: now, UpdatedAt: now}
-	if err := s.users.Create(ctx, u); err != nil {
-		return err
-	}
 	adminRole, err := s.roles.GetRoleByCode(ctx, "admin")
 	if err != nil {
 		return err
 	}
-	if adminRole == nil {
-		return nil
+	var roleIDs []uuid.UUID
+	if adminRole != nil {
+		roleIDs = []uuid.UUID{adminRole.ID}
 	}
-	return s.users.SetUserRoles(ctx, u.ID, []uuid.UUID{adminRole.ID})
+	return s.users.CreateWithRoles(ctx, u, roleIDs)
 }
 
 func (s *Service) toUserResponse(ctx context.Context, u *User) (*UserResponse, error) {

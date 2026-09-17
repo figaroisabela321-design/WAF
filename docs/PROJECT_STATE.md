@@ -30,11 +30,11 @@ Phase 1 implements only the control-plane backend. Data-plane engines, Agent pro
 
 ## Current Phase
 
-**Phase 1 — Control-plane baseline + AI collaboration workflow**
+**Phase 1 — Control-plane security hardening (REWORK IN PROGRESS)**
 
-In scope now: inventory, quality gates, security review, `.gitignore`, collaboration docs (`PROJECT_STATE` / `AI_HANDOFF` / `NEXT_TASK`), minimal README/compose fixes, git baseline commit.
+In scope: production config fail-fast, identity-only JWT + live RBAC, user/role transactions, audit error logging, trusted proxies, password min length, body size limit, swagger production gate, GitHub CI, security-boundary tests.
 
-Not in scope: SamWaf / Coraza / CRS / Agent / ClickHouse / Kafka / Dameng integration; architecture redesign; large refactors; new business features.
+Not in scope: SamWaf / Coraza / CRS / Agent / Node data-plane / ClickHouse / Kafka / Dameng / frontend; WAF feature work; large refactors; sites.domain unique / node_group / Policy/Rule field models / upstream multi-node / config_version changes.
 
 ## Current Implemented Modules (from real code)
 
@@ -52,11 +52,11 @@ Not in scope: SamWaf / Coraza / CRS / Agent / ClickHouse / Kafka / Dameng integr
 
 | Package | Role |
 |---------|------|
-| `config` | Env-based config (`HTTP_ADDR`, `DATABASE_URL`, `JWT_*`, `ADMIN_*`, `LOG_LEVEL`) |
+| `config` | Env-based config (`APP_ENV`, `HTTP_ADDR`, `DATABASE_URL`, `JWT_*`, `ADMIN_*`, `TRUSTED_PROXIES`, `SWAGGER_ENABLED`, `MAX_BODY_BYTES`, `LOG_LEVEL`) + production Validate |
 | `db` | pgx pool + golang-migrate runner |
-| `httpx` | Unified envelope, errors, Recover / RequestID / AccessLog |
+| `httpx` | Unified envelope, errors, Recover / RequestID / AccessLog / TrustedProxies / MaxBodyBytes / ClientIP |
 | `log` | slog helpers |
-| `auth` | Login, JWT HS256, RBAC, users/roles/permissions, bcrypt hasher, SeedAdmin |
+| `auth` | Login, identity-only JWT HS256, live RBAC from DB, transactional user+roles, bcrypt, SeedAdmin |
 | `site` | Site CRUD (Handler → Service → Repository → PG) |
 | `node` | Node CRUD |
 | `policy` | Policy CRUD |
@@ -71,7 +71,7 @@ Not in scope: SamWaf / Coraza / CRS / Agent / ClickHouse / Kafka / Dameng integr
 - `migrations/` — `0001_init`, `0002_seed` (permissions/roles; no plaintext admin password in SQL)
 - `pkg/adapters/{coraza,agent,clickhouse}` — interfaces + noop only
 - `pkg/pagination` — pagination helper
-- Tests present: `internal/auth/hasher_test.go`, `internal/httpx/response_test.go`, `internal/site/service_test.go`
+- Tests: config validation, JWT identity, live RBAC middleware, user tx (fake repo), client IP, body limit, swagger gate, audit error path, hasher, site validate
 
 ## Planned Architecture Decision
 
@@ -97,3 +97,20 @@ Not in scope: SamWaf / Coraza / CRS / Agent / ClickHouse / Kafka / Dameng integr
 12. Production secrets (JWT, DB passwords, admin bootstrap passwords, keys/PEMs) must come from environment or secret stores — never commit `.env`, keys, or PEMs.
 13. GitHub is the shared source of truth; `waf` owns code/dev; ChatGPT owns architecture review (PASS / REWORK).
 14. Do not start SamWaf / Coraza / CRS / Agent / ClickHouse / Kafka / Dameng integration until ChatGPT returns PASS with an explicit next-task list.
+
+
+## Control-Plane Security Principles (Phase 1 Hardening)
+
+1. **Production fail-fast**: `APP_ENV` allows only `development` / `production` (case-insensitive normalize to lowercase). Unset → `development`; any other set value (typo/`prod`/empty) fails startup naming `APP_ENV`. `APP_ENV=production` also refuses empty/dev-default/too-short `JWT_SECRET` and `ADMIN_PASSWORD`. Logs name the failed check; never print secret/password values.
+2. **JWT is identity only**: claims are `user_id`, `username`, `iat`, `exp`. Embedded roles/permissions are never the source of truth.
+3. **Live RBAC**: every protected request verifies JWT → loads user from DB → requires `enabled` → loads current roles/permissions → `RequirePermission`. Role revocation takes effect immediately for old tokens. `PermissionLoader` interface allows a future cache (no Redis yet).
+4. **User+roles transactions**: CreateUser / UpdateUser multi-step writes are owned by the repository/tx layer (not handlers). Invalid role → ROLLBACK (no leftover user); update failure → original data unchanged.
+5. **Audit never silent**: audit Write failures do not fail the business HTTP response, but must ERROR-log `request_id`, actor, method, path, resource, resource_id, error — never password/JWT/Authorization/secret/full sensitive body.
+6. **Future audit delivery**: transactional outbox / async delivery (e.g. Kafka) is planned; **not implemented in this phase**.
+7. **Trusted proxies**: only when `RemoteAddr` is in `TRUSTED_PROXIES` CIDRs are `X-Forwarded-For` / `X-Real-IP` parsed; otherwise ignore headers. XFF is a hop chain: walk right-to-left, strip trusted hops, return the first non-trusted IP (never blindly take leftmost).
+8. **Password minimum length**: new user passwords ≥ 12 characters; production admin bootstrap ≥ 12 and not the documented default.
+9. **Body size limit**: unified ~1 MiB limit on JSON mutating APIs; oversized → HTTP 413 envelope.
+10. **Swagger production off**: development default on; production default off unless `SWAGGER_ENABLED=true`; production `/swagger/*` returns 404.
+11. **CI gates**: GitHub Actions on PRs to main run gofmt / vet / test / race / build for `waf-control`.
+12. **SamWaf Runtime remains evaluation-only** — no integration until ChatGPT PASS with an explicit task list.
+

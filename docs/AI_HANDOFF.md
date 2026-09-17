@@ -5,105 +5,70 @@
 | Field | Value |
 |-------|-------|
 | Date | 2026-09-17 (Asia/Shanghai) |
-| Round | Phase 1 baseline + AI collaboration workflow |
+| Round | Phase 1 Security Hardening — ChatGPT REWORK blockers |
 | Implementing agent | `waf` (Grok Bot) — code/dev |
 | Review agent | ChatGPT — architecture review / PASS-REWORK |
 | Source of truth | GitHub `https://github.com/figaroisabela321-design/WAF.git` |
-| Branch | main |
-| Commit SHA | `5e6eeb8f5f0d46b15f6e9a1b3694ef0b6efab976` |
+| Branch | `fix/phase1-security-hardening` |
+| PR | https://github.com/figaroisabela321-design/WAF/pull/1 |
+| HEAD | `1f537424b53b5eb57cf1d4af180802f9a76d23ca` |
+| Baseline | `b719ae750560bc73d209518d8a4c57f76e2c2b37` (main) |
+| Review Result | REWORK IN PROGRESS — blockers fixed; awaiting ChatGPT re-review |
 
-## What Was Done
+## What Was Done (this round)
 
-1. Inspected `/workspace/gov-waf` tree; confirmed single Go module `waf-control` via `go.work`.
-2. Ran quality gates from `waf-control`: `gofmt -w .`, `go vet ./...`, `go test ./...`, `go build ./...`.
-3. Captured full outputs in `docs/reviews/phase1-baseline-check.log`.
-4. Security search for hardcoded secrets / passwords / JWT / keys (excluding `go.sum`, `docs/reviews`).
-5. Strengthened root `.gitignore` (env, keys/pem, logs, build artifacts, IDE, postgres data dirs, JWT secret files).
-6. Minimal `deploy/docker-compose.yml` fix: added `restart: unless-stopped` to postgres and waf-control.
-7. Created collaboration docs: `docs/PROJECT_STATE.md`, `docs/AI_HANDOFF.md`, `docs/NEXT_TASK.md`.
-8. Initialized git (repo was not a git repo), staged explicitly, committed Phase 1 baseline.
+Fixed **only** the 3 ChatGPT REWORK blockers on PR #1 (same branch; no new PR; no SamWaf/Coraza/CRS/Agent/Node):
 
-No new business features. No SamWaf / Coraza / CRS / Agent / ClickHouse / Kafka / Dameng integration. No architecture redesign.
+1. **APP_ENV fail-closed** — `config.Load()` no longer remaps unknown values to `development`. Unset → `development`; set values are case-insensitive normalized to lowercase; only `development` / `production` pass `Validate()`; typos (`prodution`, `prod`, empty-when-set) fail startup with a clear `APP_ENV` error (no secrets printed).
+2. **XFF trust chain** — when `RemoteAddr` is trusted, walk X-Forwarded-For right-to-left (with RemoteAddr as rightmost hop), strip hops in `TRUSTED_PROXIES`, return first non-trusted IP. Regression: XFF `6.6.6.6, 198.51.100.7` + RemoteAddr `10.0.0.5` + trusted `10.0.0.0/8` → client `198.51.100.7` (not leftmost).
+3. **Real GitHub Actions CI** — intended workflow authored locally at `.github/workflows/ci.yml` (gofmt, vet, test, race, build in `waf-control`). **Push BLOCKED:** PAT lacks `workflow` scope. `docs/github-workflows/ci.yml` is a pointer to the canonical path. Retry after user grants scope.
 
-## Quality Gates
+No SamWaf / Coraza / CRS / Agent / ClickHouse / Kafka / Dameng / frontend / WAF feature work.
 
-| Check | Module root | Result |
-|-------|-------------|--------|
-| gofmt | `waf-control` | PASS (no dirty files after `-w`) |
-| go vet `./...` | `waf-control` | PASS |
-| go test `./...` | `waf-control` | PASS |
-| go build `./...` | `waf-control` | PASS |
-| Same from repo root via `go.work` | `/workspace/gov-waf` | FAIL expected: `pattern ./...: directory prefix . does not contain modules listed in go.work` — run gates inside `waf-control` |
+## Quality Gates (real results)
 
-Full log: `docs/reviews/phase1-baseline-check.log`
+Module root: `waf-control`. Captured 2026-09-17 14:47:52 UTC.
 
-## Security Check
+| Check | Result |
+|-------|--------|
+| `gofmt` (`test -z ""`) | PASS |
+| `go vet ./...` | PASS |
+| `go test ./...` | PASS |
+| `go test -race ./...` | PASS |
+| `go build ./...` | PASS |
 
-### Password hashing
+## Tests Added / Updated (this round)
 
-- Confirmed bcrypt via `golang.org/x/crypto/bcrypt` in `internal/auth/hasher.go` (`BcryptHasher`, `bcrypt.DefaultCost`).
+- `internal/config/config_test.go` — unset→development; case-insensitive; unknown/typo/empty fail; production+valid secrets OK
+- `internal/httpx/client_ip_test.go` — XFF chain not-leftmost regression; prior spoof/trusted/X-Real-IP/fallback/illegal kept
 
-### Admin bootstrap
+## Config / behavior notes
 
-- Mechanism: `ADMIN_USERNAME` / `ADMIN_PASSWORD` env (defaults in `internal/config/config.go`).
-- Seeded only when no admin exists (`auth.Service.SeedAdmin`); SQL seed does not embed password hash.
-- Kept existing `ADMIN_PASSWORD` name (already env-driven); no rename to `ADMIN_INITIAL_PASSWORD`.
+| Topic | Behavior |
+|-------|----------|
+| `APP_ENV` | Unset → development; only `development`/`production` after lowercase normalize; else Validate error naming APP_ENV |
+| XFF | Right-to-left strip trusted hops; first non-trusted = client IP |
+| CI | Canonical: `.github/workflows/ci.yml` |
 
-### Findings (documented; no production secret leak requiring emergency rewrite)
+## GitHub Actions
 
-| # | Finding | Severity | Action |
-|---|---------|----------|--------|
-| 1 | `JWT_SECRET` default `dev-jwt-secret-change-me` in `config.Load` | Low (local default) | Document; production must set env. No code change this round. |
-| 2 | `ADMIN_PASSWORD` default `Admin@123` in `config.Load` + compose / `.env.example` / README | Low (local bootstrap) | Document; production must override env. |
-| 3 | `deploy/docker-compose.yml` inlines local JWT + admin password for compose-dev | Low (local only) | Acceptable for local compose; do not reuse in production. |
+| Status | Detail |
+|--------|--------|
+| BLOCKED | PAT missing `workflow` scope; cannot create `.github/workflows/ci.yml` on remote. Code fixes landed in `4b55fe81ab81e4a12cd84127d8bfb09576a79717`; subsequent docs commits on same branch. Workflow file still not on remote. |
 
-### Clean
+## Known Limitations
 
-- No `.env` committed; no `*.pem` / `*.key` in tree.
-- Access logs do not log password or JWT secret (username only on admin seed).
-- Migrations do not store plaintext admin password.
-
-**Security Issues Found (notable local-default findings):** 3  
-**Code fixes applied for leaks this round:** 0 (already env-driven; no credential logging)
-
-## Technical Risks
-
-1. Engine choice undecided: Coraza+CRS (existing noop adapters / README narrative) vs SamWaf Runtime (evaluation only) — do not implement either until ChatGPT PASS.
-2. `waf-agent` / `waf-policy` / `waf-rules` are placeholders only; easy to over-scope Phase 2.
-3. Weak local JWT/admin defaults if someone deploys without overriding env.
-4. Root `go.work` + `go ./...` from repo root confuses some CI scripts — document module-root workflow.
-5. Event/Alert APIs return empty noop lists — clients must not assume real storage.
-6. Remote GitHub `main` previously contained only a product README; local tree is the full Phase 1 codebase — first push may be non-fast-forward vs remote history.
+1. User tx tests still use fake repository (unchanged).
+2. Docker Compose plugin may still be missing on some boxes.
+3. govulncheck still optional / not wired.
+4. **GitHub Actions CI BLOCKED (this round):** Classic PAT scopes are `repo` only (no `workflow`). `git push` of `.github/workflows/ci.yml` was rejected; Contents API PUT also failed (404/denied for workflow paths). **User action required:** add Classic PAT `workflow` scope (or otherwise grant workflow write), then retry push of `.github/workflows/ci.yml` on `fix/phase1-security-hardening`. Local copy ready at `.github/workflows/ci.yml` (untracked until scope granted). Docs pointer remains at `docs/github-workflows/ci.yml`.
 
 ## Decisions Needed (ChatGPT)
 
-1. PASS or REWORK on this Phase 1 baseline + collaboration workflow.
-2. Confirm SamWaf Runtime remains **evaluation-only** vs any Coraza path for next phase.
-3. Explicit next-task list after PASS (do not invent tasks in `NEXT_TASK.md` until then).
-4. Whether production should refuse to start when `JWT_SECRET` / `ADMIN_PASSWORD` still equal documented defaults (hardening option).
-
-## Files Changed This Round
-
-- `.gitignore` (expanded)
-- `deploy/docker-compose.yml` (`restart: unless-stopped`)
-- `docs/PROJECT_STATE.md` (new)
-- `docs/AI_HANDOFF.md` (new)
-- `docs/NEXT_TASK.md` (new)
-- `docs/reviews/phase1-baseline-check.log` (new)
-- git repository initialized under `/workspace/gov-waf`
+1. PASS or further REWORK on the 3 blocker fixes.
+2. Confirm SamWaf Runtime remains evaluation-only.
+3. Explicit next-task list after PASS.
 
 ## Notes for Reviewer
 
-- README left largely unchanged (factual content already matches code).
-- Architecture smells recorded here / in PROJECT_STATE; not rewritten.
-
-## GitHub Sync
-
-| Field | Value |
-|-------|-------|
-| Push | SUCCESS |
-| Remote | `https://github.com/figaroisabela321-design/WAF.git` |
-| Remote `main` after push | `5e6eeb8f5f0d46b15f6e9a1b3694ef0b6efab976` (then updated by this docs commit if any) |
-| Method | Classic PAT (`repo`); normal push rejected (divergent history vs README-only remote); used `--force-with-lease=main:ba4ff93618cf787c9328f65dec73ad87ec032f32` |
-| Note | Replaced remote README-only tip with Phase 1 baseline history |
-
+- Do not merge until ChatGPT re-review.
