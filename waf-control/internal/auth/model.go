@@ -28,10 +28,13 @@ type Permission struct {
 	Name string
 }
 
-// Claims carried in JWT / request context.
+// Claims carried after JWT verification + live RBAC load.
+// JWT itself only embeds identity (user_id, username, iat, exp).
+// Roles/Permissions are populated from the database on each request
+// and are the source of truth for authorization.
 type Claims struct {
 	UserID      string   `json:"user_id"`
 	Username    string   `json:"username"`
-	Roles       []string `json:"roles"`
-	Permissions []string `json:"permissions"`
+	Roles       []string `json:"roles,omitempty"`
+	Permissions []string `json:"permissions,omitempty"`
 }

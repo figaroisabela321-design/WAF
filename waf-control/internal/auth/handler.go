@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -16,8 +15,7 @@ func NewHandler(svc *Service) *Handler { return &Handler{svc: svc} }
 
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	var req LoginRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httpx.Fail(w, 400, httpx.CodeBadRequest, "invalid JSON body")
+	if !httpx.DecodeJSON(w, r, &req) {
 		return
 	}
 	resp, err := h.svc.Login(r.Context(), &req)
@@ -40,8 +38,7 @@ func (h *Handler) ListUsers(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	var req CreateUserRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httpx.Fail(w, 400, httpx.CodeBadRequest, "invalid JSON body")
+	if !httpx.DecodeJSON(w, r, &req) {
 		return
 	}
 	resp, err := h.svc.CreateUser(r.Context(), &req)
@@ -63,8 +60,7 @@ func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	var req UpdateUserRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httpx.Fail(w, 400, httpx.CodeBadRequest, "invalid JSON body")
+	if !httpx.DecodeJSON(w, r, &req) {
 		return
 	}
 	resp, err := h.svc.UpdateUser(r.Context(), chi.URLParam(r, "id"), &req)
@@ -86,8 +82,7 @@ func (h *Handler) ListRoles(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) CreateRole(w http.ResponseWriter, r *http.Request) {
 	var req CreateRoleRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httpx.Fail(w, 400, httpx.CodeBadRequest, "invalid JSON body")
+	if !httpx.DecodeJSON(w, r, &req) {
 		return
 	}
 	resp, err := h.svc.CreateRole(r.Context(), &req)
