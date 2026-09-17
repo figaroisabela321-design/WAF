@@ -4,14 +4,15 @@ import "errors"
 
 // Common application error codes.
 const (
-	CodeOK           = 0
-	CodeBadRequest   = 40000
-	CodeUnauthorized = 40100
-	CodeForbidden    = 40300
-	CodeNotFound     = 40400
-	CodeConflict     = 40900
-	CodeInternal     = 50000
-	CodeValidation   = 40001
+	CodeOK              = 0
+	CodeBadRequest      = 40000
+	CodeUnauthorized    = 40100
+	CodeForbidden       = 40300
+	CodeNotFound        = 40400
+	CodeConflict        = 40900
+	CodeInternal        = 50000
+	CodeValidation      = 40001
+	CodePayloadTooLarge = 41300
 )
 
 // AppError is a typed application error with HTTP status and business code.
@@ -57,6 +58,10 @@ func Conflict(msg string) *AppError {
 
 func Internal(msg string, err error) *AppError {
 	return &AppError{HTTPStatus: 500, Code: CodeInternal, Message: msg, Err: err}
+}
+
+func PayloadTooLarge(msg string) *AppError {
+	return &AppError{HTTPStatus: 413, Code: CodePayloadTooLarge, Message: msg}
 }
 
 // AsAppError extracts *AppError if present.
