@@ -101,13 +101,13 @@ Not in scope: SamWaf / Coraza / CRS / Agent / Node data-plane / ClickHouse / Kaf
 
 ## Control-Plane Security Principles (Phase 1 Hardening)
 
-1. **Production fail-fast**: `APP_ENV=production` refuses empty/dev-default/too-short `JWT_SECRET` and empty/dev-default/too-short `ADMIN_PASSWORD`. Logs name the failed check; never print secret/password values.
+1. **Production fail-fast**: `APP_ENV` allows only `development` / `production` (case-insensitive normalize to lowercase). Unset → `development`; any other set value (typo/`prod`/empty) fails startup naming `APP_ENV`. `APP_ENV=production` also refuses empty/dev-default/too-short `JWT_SECRET` and `ADMIN_PASSWORD`. Logs name the failed check; never print secret/password values.
 2. **JWT is identity only**: claims are `user_id`, `username`, `iat`, `exp`. Embedded roles/permissions are never the source of truth.
 3. **Live RBAC**: every protected request verifies JWT → loads user from DB → requires `enabled` → loads current roles/permissions → `RequirePermission`. Role revocation takes effect immediately for old tokens. `PermissionLoader` interface allows a future cache (no Redis yet).
 4. **User+roles transactions**: CreateUser / UpdateUser multi-step writes are owned by the repository/tx layer (not handlers). Invalid role → ROLLBACK (no leftover user); update failure → original data unchanged.
 5. **Audit never silent**: audit Write failures do not fail the business HTTP response, but must ERROR-log `request_id`, actor, method, path, resource, resource_id, error — never password/JWT/Authorization/secret/full sensitive body.
 6. **Future audit delivery**: transactional outbox / async delivery (e.g. Kafka) is planned; **not implemented in this phase**.
-7. **Trusted proxies**: only when `RemoteAddr` is in `TRUSTED_PROXIES` CIDRs are `X-Forwarded-For` / `X-Real-IP` parsed (correct client IP from chain); otherwise ignore headers.
+7. **Trusted proxies**: only when `RemoteAddr` is in `TRUSTED_PROXIES` CIDRs are `X-Forwarded-For` / `X-Real-IP` parsed; otherwise ignore headers. XFF is a hop chain: walk right-to-left, strip trusted hops, return the first non-trusted IP (never blindly take leftmost).
 8. **Password minimum length**: new user passwords ≥ 12 characters; production admin bootstrap ≥ 12 and not the documented default.
 9. **Body size limit**: unified ~1 MiB limit on JSON mutating APIs; oversized → HTTP 413 envelope.
 10. **Swagger production off**: development default on; production default off unless `SWAGGER_ENABLED=true`; production `/swagger/*` returns 404.

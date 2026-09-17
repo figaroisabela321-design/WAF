@@ -37,11 +37,15 @@ type Config struct {
 }
 
 // Load reads configuration from environment with sane local defaults.
+// APP_ENV: unset → development; otherwise case-insensitive normalize to lowercase.
+// Only "development" and "production" are allowed — unknown values (typos like
+// "prodution", "prod", empty when set) are preserved so Validate fails closed.
 // Call Validate after Load; production will fail fast on unsafe secrets.
 func Load() Config {
-	appEnv := strings.ToLower(strings.TrimSpace(getEnv("APP_ENV", EnvDevelopment)))
-	if appEnv != EnvProduction {
-		appEnv = EnvDevelopment
+	appEnv := EnvDevelopment
+	if v, ok := os.LookupEnv("APP_ENV"); ok {
+		// Set (including empty): normalize; do not silently remap unknowns to development.
+		appEnv = strings.ToLower(strings.TrimSpace(v))
 	}
 
 	cfg := Config{
@@ -70,11 +74,18 @@ func Load() Config {
 	return cfg
 }
 
-// Validate fails fast for production misconfiguration. Never logs secret values.
+// Validate fails fast for invalid APP_ENV and production misconfiguration.
+// Never logs secret values.
 func (c Config) Validate() error {
-	if c.AppEnv != EnvProduction {
+	switch c.AppEnv {
+	case EnvDevelopment:
 		return nil
+	case EnvProduction:
+		// continue to secret checks below
+	default:
+		return fmt.Errorf("invalid APP_ENV %q: must be %q or %q (case-insensitive normalization); unset APP_ENV defaults to development", c.AppEnv, EnvDevelopment, EnvProduction)
 	}
+
 	if strings.TrimSpace(c.JWTSecret) == "" {
 		return fmt.Errorf("production config refused: JWT_SECRET is empty")
 	}

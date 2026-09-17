@@ -33,6 +33,17 @@ func TestClientIPTrustedXFF(t *testing.T) {
 	assert.Equal(t, "198.51.100.7", ip)
 }
 
+// Regression: do NOT take leftmost IP when RemoteAddr is trusted.
+// Chain right-to-left strips trusted hops; first non-trusted is the client.
+func TestClientIPTrustedXFFChainNotLeftmost(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.RemoteAddr = "10.0.0.5:9999"
+	req.Header.Set("X-Forwarded-For", "6.6.6.6, 198.51.100.7")
+	ip := ClientIPFromRequest(req, []*net.IPNet{mustCIDR(t, "10.0.0.0/8")})
+	assert.Equal(t, "198.51.100.7", ip)
+	assert.NotEqual(t, "6.6.6.6", ip)
+}
+
 func TestClientIPTrustedXRealIP(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.RemoteAddr = "127.0.0.1:80"

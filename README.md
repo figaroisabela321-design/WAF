@@ -73,7 +73,7 @@ ER 图见 [docs/er-diagram.md](docs/er-diagram.md)。更多架构说明见 [docs
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
-| `APP_ENV` | `development` | `development` / `production`（生产环境拒绝弱密钥与开发默认值） |
+| `APP_ENV` | `development` (unset) | Only `development` / `production` (case-insensitive). Other values fail start. Production also refuses weak/default secrets. |
 | `HTTP_ADDR` | `:8080` | HTTP 监听地址 |
 | `DATABASE_URL` | `postgres://waf:waf@localhost:5432/waf?sslmode=disable` | PostgreSQL 连接串 |
 | `JWT_SECRET` | `dev-jwt-secret-change-me` | JWT HS256 密钥（生产：非空、非开发默认、≥32 字符） |

@@ -1,6 +1,6 @@
 # NEXT_TASK
 
-**Review Result:** REWORK IN PROGRESS
+**Review Result:** REWORK IN PROGRESS — ChatGPT blockers addressed; awaiting re-review
 
 **Date:** 2026-09-17 (Asia/Shanghai)
 
@@ -14,7 +14,7 @@
 
 ## Current work
 
-Phase 1 Security Hardening implemented on branch `fix/phase1-security-hardening`. Waiting for ChatGPT review (PASS / REWORK). Do **not** invent SamWaf tasks.
+Phase 1 Security Hardening on branch `fix/phase1-security-hardening` (PR #1). ChatGPT REWORK blockers (APP_ENV fail-closed, XFF trust chain, `.github/workflows/ci.yml`) have been fixed on the same branch. Waiting for ChatGPT re-review (PASS / further REWORK). Do **not** invent SamWaf tasks.
 
 ## Explicit holds
 
@@ -35,4 +35,4 @@ ChatGPT must return either:
 - `docs/PROJECT_STATE.md`
 - `docs/AI_HANDOFF.md`
 - `docs/reviews/phase1-security-hardening-gates.log`
-- PR: fix/phase1-security-hardening → main
+- PR: https://github.com/figaroisabela321-design/WAF/pull/1

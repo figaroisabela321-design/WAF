@@ -129,3 +129,73 @@ func TestProductionLoadEmptyAdminPassword(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ADMIN_PASSWORD is empty")
 }
+
+func TestLoadUnsetAPP_ENVDefaultsDevelopment(t *testing.T) {
+	t.Setenv("JWT_SECRET", DevJWTSecret)
+	t.Setenv("ADMIN_PASSWORD", DevAdminPassword)
+
+	prev, had := os.LookupEnv("APP_ENV")
+	require.NoError(t, os.Unsetenv("APP_ENV"))
+	t.Cleanup(func() {
+		if had {
+			_ = os.Setenv("APP_ENV", prev)
+		} else {
+			_ = os.Unsetenv("APP_ENV")
+		}
+	})
+
+	cfg := Load()
+	assert.Equal(t, EnvDevelopment, cfg.AppEnv)
+	assert.NoError(t, cfg.Validate())
+}
+
+func TestLoadAPP_ENVCaseInsensitive(t *testing.T) {
+	t.Setenv("JWT_SECRET", "this-is-a-production-jwt-secret-32+")
+	t.Setenv("ADMIN_PASSWORD", "SecureAdmin!234")
+
+	t.Setenv("APP_ENV", "Development")
+	cfg := Load()
+	assert.Equal(t, EnvDevelopment, cfg.AppEnv)
+	assert.NoError(t, cfg.Validate())
+
+	t.Setenv("APP_ENV", "PRODUCTION")
+	cfg = Load()
+	assert.Equal(t, EnvProduction, cfg.AppEnv)
+	assert.NoError(t, cfg.Validate())
+}
+
+func TestLoadInvalidAPP_ENVFails(t *testing.T) {
+	t.Setenv("JWT_SECRET", DevJWTSecret)
+	t.Setenv("ADMIN_PASSWORD", DevAdminPassword)
+
+	for _, bad := range []string{"prodution", "prod", "staging", "dev", " "} {
+		t.Run(bad, func(t *testing.T) {
+			t.Setenv("APP_ENV", bad)
+			cfg := Load()
+			err := cfg.Validate()
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "APP_ENV")
+			assert.NotContains(t, err.Error(), DevJWTSecret)
+			assert.NotContains(t, err.Error(), DevAdminPassword)
+		})
+	}
+}
+
+func TestLoadEmptyAPP_ENVWhenSetFails(t *testing.T) {
+	t.Setenv("APP_ENV", "")
+	t.Setenv("JWT_SECRET", DevJWTSecret)
+	t.Setenv("ADMIN_PASSWORD", DevAdminPassword)
+	cfg := Load()
+	err := cfg.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "APP_ENV")
+}
+
+func TestLoadProductionWithValidSecretsOK(t *testing.T) {
+	t.Setenv("APP_ENV", "production")
+	t.Setenv("JWT_SECRET", "this-is-a-production-jwt-secret-32+")
+	t.Setenv("ADMIN_PASSWORD", "SecureAdmin!234")
+	cfg := Load()
+	assert.Equal(t, EnvProduction, cfg.AppEnv)
+	assert.NoError(t, cfg.Validate())
+}
