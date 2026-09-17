@@ -11,6 +11,7 @@
 | Source of truth | GitHub `https://github.com/figaroisabela321-design/WAF.git` |
 | Branch | `fix/phase1-security-hardening` |
 | PR | https://github.com/figaroisabela321-design/WAF/pull/1 |
+| HEAD | `4b55fe81ab81e4a12cd84127d8bfb09576a79717` |
 | Baseline | `b719ae750560bc73d209518d8a4c57f76e2c2b37` (main) |
 | Review Result | REWORK IN PROGRESS — blockers fixed; awaiting ChatGPT re-review |
 
@@ -20,7 +21,7 @@ Fixed **only** the 3 ChatGPT REWORK blockers on PR #1 (same branch; no new PR; n
 
 1. **APP_ENV fail-closed** — `config.Load()` no longer remaps unknown values to `development`. Unset → `development`; set values are case-insensitive normalized to lowercase; only `development` / `production` pass `Validate()`; typos (`prodution`, `prod`, empty-when-set) fail startup with a clear `APP_ENV` error (no secrets printed).
 2. **XFF trust chain** — when `RemoteAddr` is trusted, walk X-Forwarded-For right-to-left (with RemoteAddr as rightmost hop), strip hops in `TRUSTED_PROXIES`, return first non-trusted IP. Regression: XFF `6.6.6.6, 198.51.100.7` + RemoteAddr `10.0.0.5` + trusted `10.0.0.0/8` → client `198.51.100.7` (not leftmost).
-3. **Real GitHub Actions CI** — workflow at `.github/workflows/ci.yml` (gofmt, vet, test, race, build in `waf-control`). `docs/github-workflows/ci.yml` is now a pointer to the canonical path.
+3. **Real GitHub Actions CI** — intended workflow authored locally at `.github/workflows/ci.yml` (gofmt, vet, test, race, build in `waf-control`). **Push BLOCKED:** PAT lacks `workflow` scope. `docs/github-workflows/ci.yml` is a pointer to the canonical path. Retry after user grants scope.
 
 No SamWaf / Coraza / CRS / Agent / ClickHouse / Kafka / Dameng / frontend / WAF feature work.
 
@@ -49,12 +50,18 @@ Module root: `waf-control`. Captured 2026-09-17 14:47:52 UTC.
 | XFF | Right-to-left strip trusted hops; first non-trusted = client IP |
 | CI | Canonical: `.github/workflows/ci.yml` |
 
+## GitHub Actions
+
+| Status | Detail |
+|--------|--------|
+| BLOCKED | PAT missing `workflow` scope; cannot create `.github/workflows/ci.yml` on remote. HEAD `4b55fe81ab81e4a12cd84127d8bfb09576a79717` has APP_ENV + XFF fixes. |
+
 ## Known Limitations
 
 1. User tx tests still use fake repository (unchanged).
 2. Docker Compose plugin may still be missing on some boxes.
 3. govulncheck still optional / not wired.
-4. If Classic PAT lacks `workflow` scope, pushing `.github/workflows/*` may be rejected — user must grant scope and retry.
+4. **GitHub Actions CI BLOCKED (this round):** Classic PAT scopes are `repo` only (no `workflow`). `git push` of `.github/workflows/ci.yml` was rejected; Contents API PUT also failed (404/denied for workflow paths). **User action required:** add Classic PAT `workflow` scope (or otherwise grant workflow write), then retry push of `.github/workflows/ci.yml` on `fix/phase1-security-hardening`. Local copy ready at `.github/workflows/ci.yml` (untracked until scope granted). Docs pointer remains at `docs/github-workflows/ci.yml`.
 
 ## Decisions Needed (ChatGPT)
 

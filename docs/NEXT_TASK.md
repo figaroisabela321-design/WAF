@@ -23,6 +23,10 @@ Phase 1 Security Hardening on branch `fix/phase1-security-hardening` (PR #1). Ch
 - Do **NOT** invent next implementation tasks beyond ChatGPT instructions.
 - Do **NOT** merge this PR until ChatGPT review completes.
 
+## Blocked on user (CI)
+
+Classic PAT needs **`workflow` scope** to push `.github/workflows/ci.yml`. After granting, ask `waf` to retry the CI file push on the same branch.
+
 ## Waiting for
 
 ChatGPT must return either:
