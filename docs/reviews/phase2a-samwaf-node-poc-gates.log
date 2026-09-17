@@ -1,0 +1,13 @@
+=== Phase 2A SamWaf POC quality gates (waf-control only; waf-node N/A BLOCKED) ===
+Date: 2026-09-17 23:28:10 CST (Asia/Shanghai)
+Branch: feat/samwaf-node-poc
+HEAD_at_gate_run: e3007f0ac07edc32a245272313dcaffaa0f6e586
+SamWaf pin: d975b12ec0a4757ca0e9698accd373dfee5f7c71 (v1.3.25-beta.6-2-gd975b12)
+
+gofmt: PASS
+go vet ./...: PASS
+go test ./...: PASS
+go test -race ./...: PASS
+go build ./...: PASS
+
+waf-node: N/A — SAMWAF_RUNTIME_POC=BLOCKED (no module created)

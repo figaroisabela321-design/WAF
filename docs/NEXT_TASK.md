@@ -1,8 +1,8 @@
 # NEXT_TASK
 
-**Review Result:** REWORK IN PROGRESS — ChatGPT blockers addressed; awaiting re-review
+**Review Result:** PENDING CHATGPT REVIEW
 
-**Date:** 2026-09-17 (Asia/Shanghai)
+**Date:** 2026-09-17 23:26 Asia/Shanghai (UTC+8)
 
 ## Agent roles
 
@@ -14,29 +14,33 @@
 
 ## Current work
 
-Phase 1 Security Hardening on branch `fix/phase1-security-hardening` (PR #1). ChatGPT REWORK blockers (APP_ENV fail-closed, XFF trust chain, `.github/workflows/ci.yml`) have been fixed on the same branch. Waiting for ChatGPT re-review (PASS / further REWORK). Do **not** invent SamWaf tasks.
+Phase 2A SamWaf Node Runtime POC on branch `feat/samwaf-node-poc`.
+
+**POC Result: `SAMWAF_RUNTIME_POC = BLOCKED`**
+
+Analysis docs committed; `waf-node` not implemented (honest stop). Waiting for ChatGPT review.
 
 ## Explicit holds
 
-- Do **NOT** start SamWaf integration.
-- Do **NOT** start Coraza / CRS / Agent / Node data-plane / ClickHouse / Kafka / Dameng / frontend work.
-- Do **NOT** invent next implementation tasks beyond ChatGPT instructions.
+- Do **NOT** start Phase 2B.
+- Do **NOT** start Coraza upgrades.
+- Do **NOT** switch to alternative B (Caddy+Coraza) or C (custom proxy+Coraza) until ChatGPT PASS with explicit task list.
 - Do **NOT** merge this PR until ChatGPT review completes.
-
-## Blocked on user (CI)
-
-Classic PAT needs **`workflow` scope** to push `.github/workflows/ci.yml`. After granting, ask `waf` to retry the CI file push on the same branch.
+- Do **NOT** invent fake Runtime success (stock SamWaf UI, regex WAF, restart-only Apply).
 
 ## Waiting for
 
 ChatGPT must return either:
 
-1. **PASS** — with an explicit, ordered next-task list; or
-2. **REWORK** — with concrete, scoped fix instructions.
+1. **PASS** — accept BLOCKED and give explicit ordered next-task list (likely B or C, or scoped A rewrite); or
+2. **REWORK** — concrete analysis/doc fixes only (still no fake node).
 
 ## References
 
 - `docs/PROJECT_STATE.md`
 - `docs/AI_HANDOFF.md`
-- `docs/reviews/phase1-security-hardening-gates.log`
-- PR: https://github.com/figaroisabela321-design/WAF/pull/1
+- `docs/SAMWAF_INTEGRATION_ANALYSIS.md`
+- `docs/SAMWAF_NODE_POC.md`
+- `docs/THIRD_PARTY_SAMWAF.md`
+- `docs/reviews/phase2a-samwaf-node-poc-gates.log`
+- PR: https://github.com/figaroisabela321-design/WAF/pull/2
