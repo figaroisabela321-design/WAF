@@ -10,7 +10,7 @@
 | Review agent | ChatGPT — architecture review / PASS-REWORK |
 | Source of truth | GitHub `https://github.com/figaroisabela321-design/WAF.git` |
 | Branch | main |
-| Commit SHA | `3c1fccb9941aab4aa1b69d4685afd7d9d70fa9fc` |
+| Commit SHA | `5e6eeb8f5f0d46b15f6e9a1b3694ef0b6efab976` |
 
 ## What Was Done
 
@@ -103,7 +103,7 @@ Full log: `docs/reviews/phase1-baseline-check.log`
 |-------|-------|
 | Push | SUCCESS |
 | Remote | `https://github.com/figaroisabela321-design/WAF.git` |
-| Remote `main` after push | `317e49474bf50ada7f32cc5674d5ec2362b8aca7` (then updated by this docs commit if any) |
+| Remote `main` after push | `5e6eeb8f5f0d46b15f6e9a1b3694ef0b6efab976` (then updated by this docs commit if any) |
 | Method | Classic PAT (`repo`); normal push rejected (divergent history vs README-only remote); used `--force-with-lease=main:ba4ff93618cf787c9328f65dec73ad87ec032f32` |
 | Note | Replaced remote README-only tip with Phase 1 baseline history |
 
