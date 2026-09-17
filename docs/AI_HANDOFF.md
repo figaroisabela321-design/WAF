@@ -11,7 +11,7 @@
 | Source of truth | GitHub `https://github.com/figaroisabela321-design/WAF.git` |
 | Branch | `fix/phase1-security-hardening` |
 | PR | https://github.com/figaroisabela321-design/WAF/pull/1 |
-| HEAD | `4b55fe81ab81e4a12cd84127d8bfb09576a79717` |
+| HEAD | `b4dfa52bb2c0f5ce13376b3264861332ceb5c463` |
 | Baseline | `b719ae750560bc73d209518d8a4c57f76e2c2b37` (main) |
 | Review Result | REWORK IN PROGRESS — blockers fixed; awaiting ChatGPT re-review |
 
