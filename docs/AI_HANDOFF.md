@@ -11,7 +11,7 @@
 | Source of truth | GitHub `https://github.com/figaroisabela321-design/WAF.git` |
 | Branch | `feat/samwaf-node-poc` |
 | PR | https://github.com/figaroisabela321-design/WAF/pull/2 |
-| HEAD | `487e8152fdc9a91decc05a9eef4eaa6accebb6a3` |
+| HEAD | `dafacdb198edcb8e3e0cea993592eba5b4aee628` |
 | Baseline | `e3007f0ac07edc32a245272313dcaffaa0f6e586` (main) |
 | Review Result | **PENDING CHATGPT REVIEW** |
 | POC Result | **`SAMWAF_RUNTIME_POC = BLOCKED`** |
