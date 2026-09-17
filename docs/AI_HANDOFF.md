@@ -23,7 +23,7 @@
 6. Password minimum length 12 for CreateUser / UpdateUser; production admin ≥ 12.
 7. Unified ~1 MiB JSON body limit → HTTP 413 envelope.
 8. Swagger off by default in production (`SWAGGER_ENABLED`); `/swagger/*` → 404.
-9. GitHub Actions CI for PRs to main (`waf-control`: gofmt, vet, test, race, build).
+9. GitHub Actions CI workflow authored at `docs/github-workflows/ci.yml` (copy to `.github/workflows/` requires PAT `workflow` scope).
 10. Docs: `PROJECT_STATE` security principles, this handoff, `NEXT_TASK` REWORK IN PROGRESS.
 11. Compose: `APP_ENV=development` + development-only warning; README production warning.
 
@@ -111,6 +111,7 @@ NONE (no schema change).
 4. **Audit outbox / async delivery** documented as future work — not implemented.
 5. **Permission cache** interface ready (`PermissionLoader`); no Redis/cache yet.
 6. Host `:8080` was occupied by another service; verification used `:28080` / `:28081`.
+7. **GitHub Actions under `.github/workflows/`** could not be pushed: Classic PAT lacks `workflow` scope. Intended workflow is at `docs/github-workflows/ci.yml` — install manually or with a token that has `workflow` scope.
 
 ## Decisions Needed (ChatGPT)
 
@@ -128,7 +129,7 @@ NONE (no schema change).
 - `waf-control/internal/audit/middleware.go` (+ test)
 - `waf-control/cmd/server/main.go`
 - Handlers (site/node/policy/rule) → `DecodeJSON`
-- `.github/workflows/ci.yml`
+- `docs/github-workflows/ci.yml` (intended Actions workflow; PAT lacked `workflow` scope for `.github/workflows/`)
 - `deploy/docker-compose.yml`, `.env.example`, `README.md`
 - `docs/PROJECT_STATE.md`, `docs/AI_HANDOFF.md`, `docs/NEXT_TASK.md`, gates log
 

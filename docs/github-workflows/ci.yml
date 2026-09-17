@@ -1,0 +1,37 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  waf-control:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: waf-control
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: waf-control/go.mod
+          cache-dependency-path: waf-control/go.sum
+
+      - name: gofmt
+        run: test -z "$(gofmt -l .)"
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go test
+        run: go test ./...
+
+      - name: go test -race
+        run: go test -race ./...
+
+      - name: go build
+        run: go build ./...
+
+      # govulncheck is optional; skipped when unstable in CI.
+      # See docs/AI_HANDOFF.md — enable once toolchain pin is stable.
