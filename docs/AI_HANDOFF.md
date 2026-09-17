@@ -5,105 +5,134 @@
 | Field | Value |
 |-------|-------|
 | Date | 2026-09-17 (Asia/Shanghai) |
-| Round | Phase 1 baseline + AI collaboration workflow |
+| Round | Phase 1 Security Hardening |
 | Implementing agent | `waf` (Grok Bot) — code/dev |
 | Review agent | ChatGPT — architecture review / PASS-REWORK |
 | Source of truth | GitHub `https://github.com/figaroisabela321-design/WAF.git` |
-| Branch | main |
-| Commit SHA | `5e6eeb8f5f0d46b15f6e9a1b3694ef0b6efab976` |
+| Branch | `fix/phase1-security-hardening` |
+| Baseline | `b719ae750560bc73d209518d8a4c57f76e2c2b37` (main) |
+| Review Result | REWORK IN PROGRESS — wait for ChatGPT |
 
 ## What Was Done
 
-1. Inspected `/workspace/gov-waf` tree; confirmed single Go module `waf-control` via `go.work`.
-2. Ran quality gates from `waf-control`: `gofmt -w .`, `go vet ./...`, `go test ./...`, `go build ./...`.
-3. Captured full outputs in `docs/reviews/phase1-baseline-check.log`.
-4. Security search for hardcoded secrets / passwords / JWT / keys (excluding `go.sum`, `docs/reviews`).
-5. Strengthened root `.gitignore` (env, keys/pem, logs, build artifacts, IDE, postgres data dirs, JWT secret files).
-6. Minimal `deploy/docker-compose.yml` fix: added `restart: unless-stopped` to postgres and waf-control.
-7. Created collaboration docs: `docs/PROJECT_STATE.md`, `docs/AI_HANDOFF.md`, `docs/NEXT_TASK.md`.
-8. Initialized git (repo was not a git repo), staged explicitly, committed Phase 1 baseline.
+1. Production config fail-fast (`APP_ENV`, Validate for JWT_SECRET / ADMIN_PASSWORD).
+2. JWT identity-only (`user_id`, `username`, `iat`, `exp`) + live RBAC via `PermissionLoader` / `JWTAuth`.
+3. CreateUser / UpdateUser transactional writes in repository layer (`CreateWithRoles` / `UpdateWithRoles`).
+4. Audit Write failures ERROR-logged (never silent); HTTP business response unchanged.
+5. `TRUSTED_PROXIES` CIDR-aware client IP (ignore spoofed XFF when untrusted).
+6. Password minimum length 12 for CreateUser / UpdateUser; production admin ≥ 12.
+7. Unified ~1 MiB JSON body limit → HTTP 413 envelope.
+8. Swagger off by default in production (`SWAGGER_ENABLED`); `/swagger/*` → 404.
+9. GitHub Actions CI for PRs to main (`waf-control`: gofmt, vet, test, race, build).
+10. Docs: `PROJECT_STATE` security principles, this handoff, `NEXT_TASK` REWORK IN PROGRESS.
+11. Compose: `APP_ENV=development` + development-only warning; README production warning.
 
-No new business features. No SamWaf / Coraza / CRS / Agent / ClickHouse / Kafka / Dameng integration. No architecture redesign.
+No SamWaf / Coraza / CRS / Agent / ClickHouse / Kafka / Dameng / frontend / WAF feature work.
 
-## Quality Gates
+## Quality Gates (real results)
 
-| Check | Module root | Result |
-|-------|-------------|--------|
-| gofmt | `waf-control` | PASS (no dirty files after `-w`) |
-| go vet `./...` | `waf-control` | PASS |
-| go test `./...` | `waf-control` | PASS |
-| go build `./...` | `waf-control` | PASS |
-| Same from repo root via `go.work` | `/workspace/gov-waf` | FAIL expected: `pattern ./...: directory prefix . does not contain modules listed in go.work` — run gates inside `waf-control` |
+Module root: `waf-control`. Captured 2026-09-17 22:28:07 CST.
 
-Full log: `docs/reviews/phase1-baseline-check.log`
+| Check | Result |
+|-------|--------|
+| `gofmt` (`test -z "$(gofmt -l .)"`) | PASS |
+| `go vet ./...` | PASS |
+| `go test ./...` | PASS |
+| `go test -race ./...` | PASS |
+| `go build ./...` | PASS |
 
-## Security Check
+Full log: `docs/reviews/phase1-security-hardening-gates.log`
 
-### Password hashing
+## Runtime Verification
 
-- Confirmed bcrypt via `golang.org/x/crypto/bcrypt` in `internal/auth/hasher.go` (`BcryptHasher`, `bcrypt.DefaultCost`).
+Docker Compose plugin **not installed** on this box (`docker: 'compose' is not a docker command`). `docker.sock` requires sudo; existing container `waf-pg` (Postgres 16) on `:5432` was reused. Binary fallback:
 
-### Admin bootstrap
+```text
+go build -o /tmp/waf-control-new ./cmd/server
+APP_ENV=development HTTP_ADDR=:28080 DATABASE_URL=postgres://waf:waf@127.0.0.1:5432/waf?sslmode=disable ...
+```
 
-- Mechanism: `ADMIN_USERNAME` / `ADMIN_PASSWORD` env (defaults in `internal/config/config.go`).
-- Seeded only when no admin exists (`auth.Service.SeedAdmin`); SQL seed does not embed password hash.
-- Kept existing `ADMIN_PASSWORD` name (already env-driven); no rename to `ADMIN_INITIAL_PASSWORD`.
+| Scenario | Result |
+|----------|--------|
+| GET /health (:28080) | PASS |
+| GET /ready (:28080) | PASS |
+| POST /api/v1/auth/login | PASS |
+| Protected GET /api/v1/sites | PASS |
+| Disable user → old token | HTTP 401 `user disabled` PASS |
+| Revoke roles → old token | HTTP 403 `permission denied: site:read` PASS |
+| Swagger development | HTTP 200 PASS |
+| Swagger production (:28081, APP_ENV=production) | HTTP 404 PASS |
+| Production fail-fast empty JWT_SECRET | exit 1, named check, no secret printed PASS |
+| Production fail-fast ADMIN_PASSWORD=Admin@123 | exit 1, named check, no password printed PASS |
 
-### Findings (documented; no production secret leak requiring emergency rewrite)
+## Security Fixes
 
-| # | Finding | Severity | Action |
-|---|---------|----------|--------|
-| 1 | `JWT_SECRET` default `dev-jwt-secret-change-me` in `config.Load` | Low (local default) | Document; production must set env. No code change this round. |
-| 2 | `ADMIN_PASSWORD` default `Admin@123` in `config.Load` + compose / `.env.example` / README | Low (local bootstrap) | Document; production must override env. |
-| 3 | `deploy/docker-compose.yml` inlines local JWT + admin password for compose-dev | Low (local only) | Acceptable for local compose; do not reuse in production. |
+- Production refuses empty / documented-dev-default / too-short JWT and admin password.
+- JWT no longer embeds roles/permissions as authorization source of truth.
+- Live DB RBAC on every protected request (disabled user / revoked role take effect immediately).
+- User+roles create/update atomic in repository transactions.
+- Audit write failures logged with request_id/actor/method/path/resource (no secrets).
+- Trusted-proxy gated XFF / X-Real-IP parsing.
+- Password min length 12 for API user create/update.
+- 1 MiB body limit on mutating JSON APIs.
+- Swagger disabled by default in production.
+- CI workflow added for PR gates.
 
-### Clean
+## Config Changes
 
-- No `.env` committed; no `*.pem` / `*.key` in tree.
-- Access logs do not log password or JWT secret (username only on admin seed).
-- Migrations do not store plaintext admin password.
+| Variable | Notes |
+|----------|-------|
+| `APP_ENV` | `development` (default) / `production` |
+| `TRUSTED_PROXIES` | Comma-separated CIDRs |
+| `SWAGGER_ENABLED` | Dev default on; prod default off |
+| `MAX_BODY_BYTES` | Default 1048576 |
+| Compose | `APP_ENV=development`; development-only comment |
 
-**Security Issues Found (notable local-default findings):** 3  
-**Code fixes applied for leaks this round:** 0 (already env-driven; no credential logging)
+## Database Migration
 
-## Technical Risks
+NONE (no schema change).
 
-1. Engine choice undecided: Coraza+CRS (existing noop adapters / README narrative) vs SamWaf Runtime (evaluation only) — do not implement either until ChatGPT PASS.
-2. `waf-agent` / `waf-policy` / `waf-rules` are placeholders only; easy to over-scope Phase 2.
-3. Weak local JWT/admin defaults if someone deploys without overriding env.
-4. Root `go.work` + `go ./...` from repo root confuses some CI scripts — document module-root workflow.
-5. Event/Alert APIs return empty noop lists — clients must not assume real storage.
-6. Remote GitHub `main` previously contained only a product README; local tree is the full Phase 1 codebase — first push may be non-fast-forward vs remote history.
+## Tests Added / Updated
+
+- `internal/config/config_test.go` — production validation matrix + swagger defaults + empty secrets
+- `internal/auth/jwt_test.go` — identity-only claims
+- `internal/auth/middleware_test.go` — valid/invalid/expired/disabled/role-revoked/missing user
+- `internal/auth/service_tx_test.go` — fake repo tx COMMIT/ROLLBACK (see Known Limitations)
+- `internal/httpx/client_ip_test.go` — trusted proxy matrix
+- `internal/httpx/body_limit_test.go` — 413 envelope
+- `internal/httpx/swagger_gate_test.go` — prod 404
+- `internal/audit/middleware_test.go` — error log path without failing HTTP
+
+## Known Limitations
+
+1. **User tx tests use fake repository**, not live Postgres. Contract proves service→repo transactional API (`CreateWithRoles` / `UpdateWithRoles`). Prefer adding postgres integration tests when CI has a DB service.
+2. **Docker Compose** could not be started here (compose plugin missing). Verified via existing `waf-pg` + local binary on `:28080` / `:28081`.
+3. **govulncheck** not wired in CI (optional; enable once toolchain pin is stable).
+4. **Audit outbox / async delivery** documented as future work — not implemented.
+5. **Permission cache** interface ready (`PermissionLoader`); no Redis/cache yet.
+6. Host `:8080` was occupied by another service; verification used `:28080` / `:28081`.
 
 ## Decisions Needed (ChatGPT)
 
-1. PASS or REWORK on this Phase 1 baseline + collaboration workflow.
-2. Confirm SamWaf Runtime remains **evaluation-only** vs any Coraza path for next phase.
-3. Explicit next-task list after PASS (do not invent tasks in `NEXT_TASK.md` until then).
-4. Whether production should refuse to start when `JWT_SECRET` / `ADMIN_PASSWORD` still equal documented defaults (hardening option).
+1. PASS or REWORK on Phase 1 security hardening.
+2. Confirm SamWaf Runtime remains evaluation-only.
+3. Explicit next-task list after PASS (do not invent SamWaf tasks in NEXT_TASK).
+4. Whether CI should add a Postgres service for integration tests of user transactions.
+5. Whether to enable govulncheck in CI now.
 
-## Files Changed This Round
+## Files Changed (summary)
 
-- `.gitignore` (expanded)
-- `deploy/docker-compose.yml` (`restart: unless-stopped`)
-- `docs/PROJECT_STATE.md` (new)
-- `docs/AI_HANDOFF.md` (new)
-- `docs/NEXT_TASK.md` (new)
-- `docs/reviews/phase1-baseline-check.log` (new)
-- git repository initialized under `/workspace/gov-waf`
+- `waf-control/internal/config/*`
+- `waf-control/internal/auth/*` (jwt, middleware, service, repo, tests)
+- `waf-control/internal/httpx/*` (client IP, body limit, decode, middleware)
+- `waf-control/internal/audit/middleware.go` (+ test)
+- `waf-control/cmd/server/main.go`
+- Handlers (site/node/policy/rule) → `DecodeJSON`
+- `.github/workflows/ci.yml`
+- `deploy/docker-compose.yml`, `.env.example`, `README.md`
+- `docs/PROJECT_STATE.md`, `docs/AI_HANDOFF.md`, `docs/NEXT_TASK.md`, gates log
 
 ## Notes for Reviewer
 
-- README left largely unchanged (factual content already matches code).
-- Architecture smells recorded here / in PROJECT_STATE; not rewritten.
-
-## GitHub Sync
-
-| Field | Value |
-|-------|-------|
-| Push | SUCCESS |
-| Remote | `https://github.com/figaroisabela321-design/WAF.git` |
-| Remote `main` after push | `5e6eeb8f5f0d46b15f6e9a1b3694ef0b6efab976` (then updated by this docs commit if any) |
-| Method | Classic PAT (`repo`); normal push rejected (divergent history vs README-only remote); used `--force-with-lease=main:ba4ff93618cf787c9328f65dec73ad87ec032f32` |
-| Note | Replaced remote README-only tip with Phase 1 baseline history |
-
+- Do not merge until ChatGPT review.
+- No changes to sites.domain unique, node_group, Policy/Rule models, upstream multi-node, config_version/policy_version.

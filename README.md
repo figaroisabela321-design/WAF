@@ -73,25 +73,33 @@ ER 图见 [docs/er-diagram.md](docs/er-diagram.md)。更多架构说明见 [docs
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
+| `APP_ENV` | `development` | `development` / `production`（生产环境拒绝弱密钥与开发默认值） |
 | `HTTP_ADDR` | `:8080` | HTTP 监听地址 |
 | `DATABASE_URL` | `postgres://waf:waf@localhost:5432/waf?sslmode=disable` | PostgreSQL 连接串 |
-| `JWT_SECRET` | `dev-jwt-secret-change-me` | JWT HS256 密钥 |
+| `JWT_SECRET` | `dev-jwt-secret-change-me` | JWT HS256 密钥（生产：非空、非开发默认、≥32 字符） |
 | `JWT_EXPIRE_HOURS` | `24` | Token 过期小时数 |
 | `LOG_LEVEL` | `info` | `debug` / `info` / `warn` / `error` |
 | `ADMIN_USERNAME` | `admin` | 首次启动种子管理员用户名 |
-| `ADMIN_PASSWORD` | `Admin@123` | 首次启动种子管理员密码（bcrypt，仅当不存在 admin 角色用户时写入） |
+| `ADMIN_PASSWORD` | `Admin@123` | 首次启动种子管理员密码（bcrypt；生产：非空、非 `Admin@123`、≥12 字符） |
+| `TRUSTED_PROXIES` | _(empty)_ | 可信代理 CIDR 列表（逗号分隔）；仅可信来源才解析 XFF/X-Real-IP |
+| `SWAGGER_ENABLED` | 开发默认 on / 生产默认 off | 设为 `true` 可在生产开启 Swagger |
+| `MAX_BODY_BYTES` | `1048576` | JSON 请求体大小上限（约 1MiB） |
 
 参考 `.env.example`。
 
+> **安全提示**：`deploy/docker-compose.yml` 与本地默认密码仅用于 **development**。生产部署切勿照搬 `Admin@123` / `dev-jwt-secret-change-me`；新用户密码与生产管理员密码长度须 ≥ 12。
+
 ---
 
-## 默认管理员
+## 默认管理员（仅 development）
 
 | 字段 | 值 |
 |------|-----|
 | 用户名 | `admin` |
-| 密码 | `Admin@123` |
+| 密码 | `Admin@123`（开发默认；生产禁止使用） |
 | 角色 | `admin`（拥有全部权限码） |
+
+API 创建/更新用户时密码最短 12 字符。JWT 仅承载身份（user_id/username/iat/exp）；权限每次请求从数据库实时加载。
 
 权限码：`site:read/write`、`node:read/write`、`policy:read/write`、`rule:read/write`、`user:read/write`、`audit:read`。
 

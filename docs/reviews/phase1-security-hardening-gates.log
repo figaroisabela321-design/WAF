@@ -1,0 +1,62 @@
+=== Date ===
+2026-09-17 22:28:07 CST
+=== gofmt ===
+PASS
+=== go vet ===
+PASS
+=== go test ===
+?   	github.com/gov-waf/waf-control/cmd/server	[no test files]
+?   	github.com/gov-waf/waf-control/docs	[no test files]
+?   	github.com/gov-waf/waf-control/internal/alert	[no test files]
+ok  	github.com/gov-waf/waf-control/internal/audit	(cached)
+ok  	github.com/gov-waf/waf-control/internal/auth	(cached)
+ok  	github.com/gov-waf/waf-control/internal/config	(cached)
+?   	github.com/gov-waf/waf-control/internal/db	[no test files]
+?   	github.com/gov-waf/waf-control/internal/event	[no test files]
+ok  	github.com/gov-waf/waf-control/internal/httpx	(cached)
+?   	github.com/gov-waf/waf-control/internal/log	[no test files]
+?   	github.com/gov-waf/waf-control/internal/node	[no test files]
+?   	github.com/gov-waf/waf-control/internal/policy	[no test files]
+?   	github.com/gov-waf/waf-control/internal/rule	[no test files]
+ok  	github.com/gov-waf/waf-control/internal/site	(cached)
+?   	github.com/gov-waf/waf-control/migrations	[no test files]
+?   	github.com/gov-waf/waf-control/pkg/adapters/agent	[no test files]
+?   	github.com/gov-waf/waf-control/pkg/adapters/clickhouse	[no test files]
+?   	github.com/gov-waf/waf-control/pkg/adapters/coraza	[no test files]
+?   	github.com/gov-waf/waf-control/pkg/pagination	[no test files]
+PASS
+=== go test -race ===
+?   	github.com/gov-waf/waf-control/cmd/server	[no test files]
+?   	github.com/gov-waf/waf-control/docs	[no test files]
+?   	github.com/gov-waf/waf-control/internal/alert	[no test files]
+ok  	github.com/gov-waf/waf-control/internal/audit	(cached)
+ok  	github.com/gov-waf/waf-control/internal/auth	(cached)
+ok  	github.com/gov-waf/waf-control/internal/config	(cached)
+?   	github.com/gov-waf/waf-control/internal/db	[no test files]
+?   	github.com/gov-waf/waf-control/internal/event	[no test files]
+ok  	github.com/gov-waf/waf-control/internal/httpx	(cached)
+?   	github.com/gov-waf/waf-control/internal/log	[no test files]
+?   	github.com/gov-waf/waf-control/internal/node	[no test files]
+?   	github.com/gov-waf/waf-control/internal/policy	[no test files]
+?   	github.com/gov-waf/waf-control/internal/rule	[no test files]
+ok  	github.com/gov-waf/waf-control/internal/site	(cached)
+?   	github.com/gov-waf/waf-control/migrations	[no test files]
+?   	github.com/gov-waf/waf-control/pkg/adapters/agent	[no test files]
+?   	github.com/gov-waf/waf-control/pkg/adapters/clickhouse	[no test files]
+?   	github.com/gov-waf/waf-control/pkg/adapters/coraza	[no test files]
+?   	github.com/gov-waf/waf-control/pkg/pagination	[no test files]
+PASS
+=== go build ===
+PASS
+
+=== Runtime verification (Asia/Shanghai) ===
+2026-09-17 — Docker Compose: FAIL (compose plugin missing; used existing waf-pg + binary)
+GET /health :28080 PASS
+GET /ready :28080 PASS
+POST /login PASS
+protected API PASS
+disabled user old token -> 401 PASS
+role revoked old token -> 403 PASS
+swagger development :28080 -> 200 PASS
+swagger production :28081 -> 404 PASS
+production fail-fast JWT empty / ADMIN default PASS (exit 1)

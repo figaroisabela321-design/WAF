@@ -1,3 +1,6 @@
+# DEVELOPMENT ONLY — do not copy these passwords/secrets into production.
+# Production must set APP_ENV=production with strong JWT_SECRET and ADMIN_PASSWORD
+# that are NOT the documented development defaults.
 services:
   postgres:
     image: postgres:16-alpine
@@ -25,6 +28,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      APP_ENV: development
       HTTP_ADDR: ":8080"
       DATABASE_URL: "postgres://waf:waf@postgres:5432/waf?sslmode=disable"
       JWT_SECRET: "compose-dev-jwt-secret-change-me"
@@ -32,6 +36,8 @@ services:
       LOG_LEVEL: "info"
       ADMIN_USERNAME: "admin"
       ADMIN_PASSWORD: "Admin@123"
+      TRUSTED_PROXIES: "127.0.0.1/32,10.0.0.0/8"
+      # SWAGGER_ENABLED defaults on in development
     ports:
       - "8080:8080"
 
