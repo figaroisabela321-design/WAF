@@ -4,71 +4,88 @@
 
 | Field | Value |
 |-------|-------|
-| Date | 2026-09-17 (Asia/Shanghai) |
-| Round | Phase 1 Security Hardening — ChatGPT REWORK blockers |
+| Date | 2026-09-17 23:26 Asia/Shanghai (UTC+8) |
+| Round | Phase 2A — SamWaf Node Runtime POC |
 | Implementing agent | `waf` (Grok Bot) — code/dev |
 | Review agent | ChatGPT — architecture review / PASS-REWORK |
 | Source of truth | GitHub `https://github.com/figaroisabela321-design/WAF.git` |
-| Branch | `fix/phase1-security-hardening` |
-| PR | https://github.com/figaroisabela321-design/WAF/pull/1 |
-| HEAD | `1f537424b53b5eb57cf1d4af180802f9a76d23ca` |
-| Baseline | `b719ae750560bc73d209518d8a4c57f76e2c2b37` (main) |
-| Review Result | REWORK IN PROGRESS — blockers fixed; awaiting ChatGPT re-review |
+| Branch | `feat/samwaf-node-poc` |
+| Baseline | `e3007f0ac07edc32a245272313dcaffaa0f6e586` (main) |
+| Review Result | **PENDING CHATGPT REVIEW** |
+| POC Result | **`SAMWAF_RUNTIME_POC = BLOCKED`** |
 
 ## What Was Done (this round)
 
-Fixed **only** the 3 ChatGPT REWORK blockers on PR #1 (same branch; no new PR; no SamWaf/Coraza/CRS/Agent/Node):
-
-1. **APP_ENV fail-closed** — `config.Load()` no longer remaps unknown values to `development`. Unset → `development`; set values are case-insensitive normalized to lowercase; only `development` / `production` pass `Validate()`; typos (`prodution`, `prod`, empty-when-set) fail startup with a clear `APP_ENV` error (no secrets printed).
-2. **XFF trust chain** — when `RemoteAddr` is trusted, walk X-Forwarded-For right-to-left (with RemoteAddr as rightmost hop), strip hops in `TRUSTED_PROXIES`, return first non-trusted IP. Regression: XFF `6.6.6.6, 198.51.100.7` + RemoteAddr `10.0.0.5` + trusted `10.0.0.0/8` → client `198.51.100.7` (not leftmost).
-3. **Real GitHub Actions CI** — intended workflow authored locally at `.github/workflows/ci.yml` (gofmt, vet, test, race, build in `waf-control`). **Push BLOCKED:** PAT lacks `workflow` scope. `docs/github-workflows/ci.yml` is a pointer to the canonical path. Retry after user grants scope.
-
-No SamWaf / Coraza / CRS / Agent / ClickHouse / Kafka / Dameng / frontend / WAF feature work.
+1. Moved local architect briefing notes out of git staging path (`/workspace/gov-waf-local-notes/`); working tree clean of those three files before staging.
+2. Froze SamWaf upstream **outside** product repo: `/workspace/upstream/SamWaf` @ `d975b12ec0a4757ca0e9698accd373dfee5f7c71` (`v1.3.25-beta.6-2-gd975b12`). No mid-POC pull.
+3. Analyzed cmd/samwaf, wafenginecore, wafowasp, wafproxy, wafconfig, wafinit, wafdb, wafssl, model, service/waf_service, global, globalobj, router, api (+ mangeweb/update/acme).
+4. Wrote `docs/SAMWAF_INTEGRATION_ANALYSIS.md` (20 questions, dependency graph, reusable vs high-coupling, lifecycle, network/DB/license, rewrite cost).
+5. **GO/NO-GO = NO-GO.** Stopped large coding. Did **not** create `waf-node/`, did **not** vendor SamWaf, did **not** start Phase 2B or alternatives B/C.
+6. Wrote `docs/SAMWAF_NODE_POC.md`, `docs/THIRD_PARTY_SAMWAF.md`; updated PROJECT_STATE / AI_HANDOFF / NEXT_TASK.
+7. Ran waf-control quality gates (all PASS). waf-node gates N/A.
 
 ## Quality Gates (real results)
 
-Module root: `waf-control`. Captured 2026-09-17 14:47:52 UTC.
+Module root: `waf-control`. Captured 2026-09-17 23:26 Asia/Shanghai.
 
 | Check | Result |
 |-------|--------|
-| `gofmt` (`test -z ""`) | PASS |
+| `gofmt` | PASS |
 | `go vet ./...` | PASS |
 | `go test ./...` | PASS |
 | `go test -race ./...` | PASS |
 | `go build ./...` | PASS |
+| `waf-node` gates | **N/A** — module not created (BLOCKED) |
 
-## Tests Added / Updated (this round)
+Log: `docs/reviews/phase2a-samwaf-node-poc-gates.log`
 
-- `internal/config/config_test.go` — unset→development; case-insensitive; unknown/typo/empty fail; production+valid secrets OK
-- `internal/httpx/client_ip_test.go` — XFF chain not-leftmost regression; prior spoof/trusted/X-Real-IP/fallback/illegal kept
+## E2E matrix (real)
 
-## Config / behavior notes
+| Scenario | Result | Note |
+|----------|--------|------|
+| Node management :19090 health | N/A | No gov-waf-node binary |
+| config/validate + apply + LKG | N/A | Not implemented |
+| CP offline + LKG traffic | N/A | Not implemented |
+| Observe SQLi/XSS (Coraza+CRS) | N/A / FAIL | No real node path |
+| Protect SQLi/XSS | N/A / FAIL | No real node path |
+| Event ingest to CP | N/A | Not implemented |
+| Heartbeat | N/A | Not implemented |
+| CP config/publish | N/A | Not implemented |
 
-| Topic | Behavior |
-|-------|----------|
-| `APP_ENV` | Unset → development; only `development`/`production` after lowercase normalize; else Validate error naming APP_ENV |
-| XFF | Right-to-left strip trusted hops; first non-trusted = client IP |
-| CI | Canonical: `.github/workflows/ci.yml` |
+**SamWaf Management UI Used: NO**
 
-## GitHub Actions
+## Blocking summary (for reviewer)
 
-| Status | Detail |
-|--------|--------|
-| BLOCKED | PAT missing `workflow` scope; cannot create `.github/workflows/ci.yml` on remote. Code fixes landed in `4b55fe81ab81e4a12cd84127d8bfb09576a79717`; subsequent docs commits on same branch. Workflow file still not on remote. |
+| Blocker | Evidence |
+|---------|----------|
+| SQLite host authority | `LoadAllHost` / `ensureGlobalHost` / `ReloadAllHostZeroGap` use `global.GWAF_LOCAL_DB` |
+| Global singletons | `global/*`, `globalobj.GWAF_RUNTIME_OBJ_WAF_ENGINE`; ~473 `global.` refs in wafenginecore |
+| Management web fused | `wafmangeweb.StartLocalServer()` from `cmd/samwaf/main.go` on port 26666 |
+| No external NodeConfig Apply | Reload path is DB+channels, not JSON Runtime API |
+| Multi-instance | Process-wide globals prevent multiple Runtimes per process |
+| Outbound | wafupdate / ACME / DNS defaults present |
+
+Rewrite cost: large core rewrite / sustained fork — not Phase 2A.
+
+## Alternatives (documented only)
+
+- A SamWaf embed — BLOCKED  
+- B Caddy+Coraza — not started  
+- C custom proxy+Coraza — not started  
 
 ## Known Limitations
 
-1. User tx tests still use fake repository (unchanged).
-2. Docker Compose plugin may still be missing on some boxes.
-3. govulncheck still optional / not wired.
-4. **GitHub Actions CI BLOCKED (this round):** Classic PAT scopes are `repo` only (no `workflow`). `git push` of `.github/workflows/ci.yml` was rejected; Contents API PUT also failed (404/denied for workflow paths). **User action required:** add Classic PAT `workflow` scope (or otherwise grant workflow write), then retry push of `.github/workflows/ci.yml` on `fix/phase1-security-hardening`. Local copy ready at `.github/workflows/ci.yml` (untracked until scope granted). Docs pointer remains at `docs/github-workflows/ci.yml`.
+1. No `waf-node` binary or E2E curls (expected under BLOCKED).
+2. Upstream SamWaf wants Go 1.25; box/gov-waf use Go 1.24.x — relevant if anyone later builds upstream in-tree.
+3. CI workflow already on main from Phase 1; this PR does not extend CI for waf-node (module absent).
 
 ## Decisions Needed (ChatGPT)
 
-1. PASS or further REWORK on the 3 blocker fixes.
-2. Confirm SamWaf Runtime remains evaluation-only.
-3. Explicit next-task list after PASS.
+1. Accept BLOCKED as Phase 2A outcome?
+2. Choose next runtime path: remain on A only with rewrite charter, or switch to B/C (explicit task list required).
+3. Any allowed interim (e.g. SamWaf as external appliance, not embed)?
 
 ## Notes for Reviewer
 
-- Do not merge until ChatGPT re-review.
+- Do **not** merge until ChatGPT review.
+- Do **not** treat absence of waf-node code as incomplete analysis — stopping was mandatory on NO-GO.
