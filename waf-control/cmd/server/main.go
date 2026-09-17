@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/gov-waf/waf-control/docs"
@@ -35,6 +34,11 @@ func main() {
 	cfg := config.Load()
 	logger := applog.New(cfg.LogLevel)
 	slog := logger
+
+	if err := cfg.Validate(); err != nil {
+		slog.Error("configuration validation failed", "error", err.Error(), "app_env", cfg.AppEnv)
+		os.Exit(1)
+	}
 
 	ctx := context.Background()
 
@@ -92,8 +96,9 @@ func main() {
 	r := chi.NewRouter()
 	r.Use(httpx.Recover(slog))
 	r.Use(httpx.RequestID)
+	r.Use(httpx.TrustedProxies(cfg.TrustedProxies))
 	r.Use(httpx.AccessLog(slog))
-	r.Use(chimw.RealIP)
+	r.Use(httpx.MaxBodyBytes(cfg.MaxBodyBytes))
 
 	// Public health
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -101,12 +106,18 @@ func main() {
 	})
 	r.Get("/ready", readyHandler(pool))
 
-	// Swagger UI + OpenAPI YAML
-	r.Get("/swagger/openapi.yaml", serveOpenAPI)
-	r.Get("/swagger/*", httpSwagger.Handler(
-		httpSwagger.URL("/swagger/openapi.yaml"),
-	))
-	r.Get("/docs/openapi.yaml", serveOpenAPI)
+	// Swagger UI + OpenAPI YAML (disabled by default in production)
+	if cfg.SwaggerEnabled {
+		r.Get("/swagger/openapi.yaml", serveOpenAPI)
+		r.Get("/swagger/*", httpSwagger.Handler(
+			httpSwagger.URL("/swagger/openapi.yaml"),
+		))
+		r.Get("/docs/openapi.yaml", serveOpenAPI)
+	} else {
+		r.Get("/swagger/*", swaggerDisabled)
+		r.Get("/swagger/openapi.yaml", swaggerDisabled)
+		r.Get("/docs/openapi.yaml", swaggerDisabled)
+	}
 
 	// Auth login (public)
 	// Protected API
@@ -115,7 +126,7 @@ func main() {
 		api.With(audit.Middleware(auditSvc)).Post("/auth/login", authHandler.Login)
 
 		api.Group(func(priv chi.Router) {
-			priv.Use(auth.JWT(tokens))
+			priv.Use(auth.JWTAuth(tokens, userRepo))
 			priv.Use(audit.Middleware(auditSvc))
 
 			priv.With(auth.RequirePermission("site:read")).Get("/sites", siteHandler.List)
@@ -166,7 +177,7 @@ func main() {
 	}
 
 	go func() {
-		slog.Info("waf-control listening", "addr", cfg.HTTPAddr)
+		slog.Info("waf-control listening", "addr", cfg.HTTPAddr, "app_env", cfg.AppEnv, "swagger", cfg.SwaggerEnabled)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			slog.Error("server error", "error", err)
 			os.Exit(1)
@@ -198,4 +209,8 @@ func serveOpenAPI(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/yaml; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(docs.OpenAPIYAML)
+}
+
+func swaggerDisabled(w http.ResponseWriter, r *http.Request) {
+	http.NotFound(w, r)
 }
